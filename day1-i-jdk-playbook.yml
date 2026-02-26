@@ -1,0 +1,11 @@
+---
+- name: install jdk on hosts 
+  hosts:
+    - 192.168.0.201
+  become: true
+  tasks:
+    - name: installing using apt
+      apt:
+        name: openjdk-21-jdk
+        state: present
+        update_cache: yes
