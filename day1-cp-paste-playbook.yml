@@ -1,0 +1,40 @@
+---
+- name: Creating and zipping file to host1
+  hosts:
+    - 192.168.0.201
+  tasks:
+    - name: create destination directory krish 
+      file: 
+        path: ~/krish
+        state: directory
+    - name: create build file at destination dir
+      copy:
+        dest: ~/krish/build
+        content: "This content is added by krish. Using playbook"
+    - name: archive build file at destination dir
+      archive:
+        path: ~/krish/build
+        dest: ~/krish/build.zip
+        format: zip
+    - name: fetch build to control node
+      fetch:
+        src: ~/krish/build.zip
+        dest: ~/artifacts/
+        flat: yes
+- name: Push and unzip artifact to host2
+  hosts:
+    - 192.168.0.202
+  tasks:
+    - name: create destination directory krish-server
+      file:
+        path: ~/krish-server
+        state: directory
+    - name: push build at destination directory
+      copy:
+        src: ~/artifacts/build.zip
+        dest: ~/krish-server/build.zip
+    - name: unzip build file at destination
+      unarchive:
+        src: ~/krish-server/build.zip
+        dest: ~/krish-server/
+        remote_src: yes
