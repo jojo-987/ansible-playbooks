@@ -1,7 +1,7 @@
 ---
-- name: Deploy artifact on iis
+- name: Deploy artifact on iis and run the application on localhost
   hosts:
-    - win_host
+    - win_hosts
   tasks:
     - name: ensure target directory exist
       ansible.windows.win_file:
@@ -25,7 +25,7 @@
       community.windows.win_iis_webapppool:
         name: kp-next-todo
         state: started
-    - name: create a IIS website
+    - name: create an IIS website
       community.windows.win_iis_website:
         name: kp-next-todo
         state: started
@@ -35,3 +35,11 @@
         application_pool: kp-next-todo
         physical_path: C:\inetpub\wwwroot\kp-next-todo\
       register: website
+    - name: adding https binding using certificate
+      community.windows.win_iis_webbinding:
+        name: kp-next-todo
+        protocol: https
+        port: 443
+        ip: '*'
+        certificate_hash: "D7B1B598EB685D1A88C16BC4FD68B25221C2A483"
+        state: present
