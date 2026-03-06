@@ -1,0 +1,133 @@
+---
+- name: redeploy latest artifact to windows iis server
+  hosts: win_hostkp
+  vars:
+    nexus_url: "http://192.168.0.49:8081/service/rest/v1/search/assets/download?sort=version&direction=desc&repository=Interns_Nexus_2026&maven.extension=zip&group=krish.frontend&name=basic-vite"
+    project_name: "basic-vite"
+    site_name: "kp-{{ project_name }}"
+    site_url: "http://192.168.0.115/"
+    deploy_root: "C:\\inetpub\\wwwroot\\{{ site_name }}"
+    site_base_path: "C:\\Users\\Administrator\\Downloads\\sites"
+    artifact_dir: "{{ site_base_path }}\\{{ project_name }}\\artifacts"
+    backup_dir: "{{ site_base_path }}\\{{ project_name }}\\backup"
+  tasks:
+    - name: ensure all required directory exist
+      ansible.windows.win_file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ deploy_root }}"
+        - "{{ artifact_dir }}"
+        - "{{ backup_dir }}"
+    - name: fetch latest artifact using url and store response
+      ansible.windows.win_uri:
+        url: "{{ nexus_url }}"
+        method: HEAD
+      register: response
+    - name: setting artifact name from url
+      set_fact: 
+        artifact_name: "{{ response.response_uri | basename }} " 
+    - name: download latest artifact using response variable
+      ansible.windows.win_get_url:
+        url: "{{ response.response_uri }}"
+        dest: "{{ artifact_dir }}\\{{ artifact_name }}"
+    - name: find all artifacts of this project and store it is variable
+      ansible.windows.win_find:
+        paths: "{{ artifact_dir }}"
+        patterns: "{{ project_name }}-*.zip"
+      register: all_win_artifacts
+    - name: stopping running site before unzipping new content
+      community.windows.win_iis_website:
+        name: "{{ site_name }}"
+        state: stopped
+    - name: stopping running application pool
+      community.windows.win_iis_webapppool:
+        name: "{{ site_name }}"
+        state: stopped
+    - name: copy preserved files to another location
+      ansible.windows.win_copy:
+        src: "{{ deploy_root }}\\web.config"
+        dest: "{{ backup_dir }}"
+        remote_src: true
+    - name: deployment with rollback
+      block:
+        - name: remove previous artifact from root
+          ansible.windows.win_file:
+            path: "{{ deploy_root }}"
+            state: absent
+        - name: create empty directory at same root
+          ansible.windows.win_file:
+            path: "{{ deploy_root }}"
+            state: directory
+        - name: unzip latest at root
+          community.windows.win_unzip:
+            src: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}"
+            dest: "{{ deploy_root }}"
+            remote_src: true
+        - name: readd preserved files
+          ansible.windows.win_copy: 
+            src: "{{ backup_dir }}\\web.config"
+            dest: "{{ deploy_root }}"
+            remote_src: true
+        - name: restarting application pool
+          community.windows.win_iis_webapppool:
+            name: "{{ site_name }}"
+            state: started
+        - name: restarting site
+          community.windows.win_iis_website:
+            name: "{{ site_name }}"
+            state: started
+        - name: check site health
+          ansible.windows.win_uri:
+            url: "{{ site_url }}"
+            status_code: 200
+      rescue:
+        - name: stopping running site before unzipping new content
+          community.windows.win_iis_website:
+            name: "{{ site_name }}"
+            state: stopped
+        - name: stopping running application pool
+          community.windows.win_iis_webapppool:
+            name: "{{ site_name }}"
+            state: stopped
+        - name: remove previous artifact from root
+          ansible.windows.win_file:
+            path: "{{ deploy_root }}"
+            state: absent
+        - name: create empty directory at same root
+          ansible.windows.win_file:
+            path: "{{ deploy_root }}"
+            state: directory
+        - name: unzip latest at root
+          community.windows.win_unzip:
+            src: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[1].path }}"
+            dest: "{{ deploy_root }}"
+            remote_src: true
+        - name: readd preserved files
+          ansible.windows.win_copy:
+            src: "{{ backup_dir }}\\web.config"
+            dest: "{{ deploy_root }}"
+            remote_src: true
+        - name: restarting application pool
+          community.windows.win_iis_webapppool:
+            name: "{{ site_name }}"
+            state: started
+        - name: restarting site
+          community.windows.win_iis_website:
+            name: "{{ site_name }}"
+            state: started
+        - name: remove failed artifact from artifacts
+          ansible.windows.win_file:
+            path: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}"
+            state: absent
+    - name: Finding List of updated artifacts
+      ansible.windows.win_find:
+        paths: "{{ artifact_dir }}"
+        patterns: "{{ project_name }}-*.zip"
+      register: artifact_list
+    - name: Remove old artifacts if more than 2 is there
+      ansible.windows.win_file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ (artifact_list.files | sort(attribute='lastwritetime') | reverse)[2:] }}"
+      when: artifact_list.matched > 2        
