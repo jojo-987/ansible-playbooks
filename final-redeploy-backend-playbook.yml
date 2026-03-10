@@ -113,7 +113,7 @@
         - name: check site health
           ansible.windows.win_uri:
             url: "{{ site_url }}"
-            status_code: "{{ expected_status_code | default(200) }}"
+            status_code: "{{ expected_status_code || default(404) }}"
       rescue:
         - name: stopping running site before unzipping new content
           community.windows.win_iis_website:

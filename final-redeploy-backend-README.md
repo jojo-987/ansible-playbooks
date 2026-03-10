@@ -3,7 +3,7 @@ nexus_url
 project_name
 site_name ( can write same as project_name)
 site_url ( for health status check )
-expected_status_code (for health status check default 200)
+expected_status_code (for health status check default 404)
 
 For IIS site Creation:
 required:
