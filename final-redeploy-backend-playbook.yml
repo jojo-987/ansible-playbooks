@@ -94,11 +94,16 @@
             src: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}"
             dest: "{{ deploy_root }}"
             remote_src: true
+        - name: check if backup exist
+          ansible.windows.win_stat:
+            path: "{{ backup_dir }}\\web.config"
+          register: backup_stat
         - name: readd preserved files
           ansible.windows.win_copy: 
             src: "{{ backup_dir }}\\web.config"
             dest: "{{ deploy_root }}"
             remote_src: true
+          when: backup_stat.stat.exists
         - name: restarting application pool
           community.windows.win_iis_webapppool:
             name: "{{ site_name }}"
@@ -144,6 +149,7 @@
             src: "{{ backup_dir }}\\web.config"
             dest: "{{ deploy_root }}"
             remote_src: true
+          when: backup_stat.stat.exists
         - name: restarting application pool
           community.windows.win_iis_webapppool:
             name: "{{ site_name }}"
