@@ -1,15 +1,16 @@
 ---
 - name: redeploy latest artifact to windows iis server
-  hosts: win_hostkp
+  hosts: win_server2
   vars:
     nexus_url: "http://192.168.0.49:8081/service/rest/v1/search/assets/download?sort=version&direction=desc&repository=Interns_Nexus_2026&maven.extension=zip&group=krish.frontend&name=basic-vite"
     project_name: "basic-vite"
     site_name: "kp-{{ project_name }}"
-    site_url: "http://192.168.0.115/"
+    site_url: "http://192.168.0.32/"
     deploy_root: "C:\\inetpub\\wwwroot\\{{ site_name }}"
-    site_base_path: "C:\\Users\\Administrator\\Downloads\\sites"
+    site_base_path: "C:\\Users\\ansible\\Downloads\\sites"
     artifact_dir: "{{ site_base_path }}\\{{ project_name }}\\artifacts"
     backup_dir: "{{ site_base_path }}\\{{ project_name }}\\backup"
+    web_config_root_agent: "~/Desktop/intern/playbooks/frontend-web-config/web.config"
   tasks:
     - name: ensure all required directory exist
       ansible.windows.win_file:
@@ -97,11 +98,17 @@
             src: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}"
             dest: "{{ deploy_root }}"
             remote_src: true
-        - name: readd preserved files
+        - name: readd preserved files if exists on server
           ansible.windows.win_copy: 
             src: "{{ backup_dir }}\\web.config"
             dest: "{{ deploy_root }}"
             remote_src: true
+          when: web_config_stat.stat.exists
+        - name: adding web.config from agent
+          ansible.windows.win_copy:
+            src: "{{ web_config_root_agent }}"
+            dest: "{{ deploy_root }}"
+          when: not web_config_stat.stat.exists
         - name: restarting application pool
           community.windows.win_iis_webapppool:
             name: "{{ site_name }}"

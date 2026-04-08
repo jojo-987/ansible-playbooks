@@ -104,6 +104,11 @@
             dest: "{{ deploy_root }}"
             remote_src: true
           when: backup_stat.stat.exists
+        - name: add web.config if not exist on server from agent
+          ansible.windows.win_copy:
+            src: "{{ web_config_root_agent }}"
+            dest: "{{ deploy_root }}"
+          when: not web_config_stat.stat.exists
         - name: restarting application pool
           community.windows.win_iis_webapppool:
             name: "{{ site_name }}"
