@@ -1,0 +1,84 @@
+---
+# Please Refer to .md file before running this playbook for extra variables that needed to be passed for this playbook
+- name: redeploy latest artifact to windows iis server
+  hosts: win_hostkp
+  vars:
+    site_base_path: "C:\\Users\\ansible\\Downloads\\sites"
+    artifact_dir: "{{ site_base_path }}\\{{ project_name }}\\artifacts"
+    backup_dir: "{{ site_base_path }}\\{{ project_name }}\\backup"
+    java_jdk_path: "C:\\Program Files\\Java\\jdk-17\\bin\\java.exe"
+  tasks:
+    - name: ensure all required directory exist
+      ansible.windows.win_file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ artifact_dir }}"
+        - "{{ backup_dir }}"
+    - name: fetch latest artifact using url and store response
+      ansible.windows.win_uri:
+        url: "{{ nexus_url }}"
+        method: HEAD
+      register: response
+    - name: setting artifact name from url
+      set_fact: 
+        artifact_name: "{{ response.response_uri | basename }}" 
+    - name: download latest artifact using response variable
+      ansible.windows.win_get_url:
+        url: "{{ response.response_uri }}"
+        dest: "{{ artifact_dir }}\\{{ artifact_name }}"
+    - name: find list of all artifacts of this project and store it is variable
+      ansible.windows.win_find:
+        paths: "{{ artifact_dir }}"
+        patterns: "{{ project_name }}-*.jar"
+      register: all_win_artifacts
+    - name: deployment with rollback
+      block:
+        - name: Creating a sevice for SCIM on windows
+          community.windows.win_nssm:
+            name: "{{ project_name }}"
+            application: "{{ java_jdk_path }}"
+            app_parameters: "-jar {{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }} --server.port={{ server_port }}"
+            app_directory: "{{ artifact_dir }}"
+            state: restarted
+            status_url: "{{ site_url }}"
+        - name: Wait for app to be up
+          ansible.windows.win_uri:
+            url: "{{ site_url }}"
+            status_code: "{{ expected_status_code | default(200) }}"
+          register: health_check
+          retries: 5
+          delay: 5
+          until: health_check.status == expected_status_code | default(200)
+      rescue:
+        - name: Stop existing service
+          community.windows.win_nssm:
+            name: "{{ project_name }}"
+            state: stopped
+        - name: Wait for server port to be open
+          ansible.windows.win_wait_for:
+            port: "{{ server_port }}"
+            state: stopped
+            timeout: 30
+        - name: Fail if no rollback artifact available
+          fail:
+             msg: "Deployment failed and no previous artifact available for rollback"
+          when: all_win_artifacts.matched < 2
+        - name: Rollbacking to previous
+          community.windows.win_nssm:
+            name: "{{ project_name }}"
+            application: "{{ java_jdk_path }}"
+            app_parameters: "-jar {{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[1].path }} --server.port=9000"
+            app_directory: "{{ artifact_dir }}"
+            state: started
+            status_url: "{{ site_url }}"
+        - name: remove failed artifact from artifacts
+          ansible.windows.win_file:
+            path: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}"
+            state: absent
+    - name: Remove old artifacts if more than 2 is there
+      ansible.windows.win_file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[2:] }}"
+      when: all_win_artifacts.matched > 2

@@ -4,7 +4,7 @@
   hosts: win_hostkp
   vars:
     deploy_root: "C:\\inetpub\\wwwroot\\{{ site_name }}"
-    site_base_path: "C:\\Users\\Administrator\\Downloads\\sites"
+    site_base_path: "C:\\Users\\ansible\\Downloads\\sites"
     artifact_dir: "{{ site_base_path }}\\{{ project_name }}\\artifacts"
     backup_dir: "{{ site_base_path }}\\{{ project_name }}\\backup"
   tasks:
