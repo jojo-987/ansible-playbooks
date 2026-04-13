@@ -37,10 +37,6 @@
         msg: "artifacts {{ all_win_artifacts }}"
     - name: deployment with rollback
       block:
-        - name: Create service if not present
-          ansible.windows.win_service:
-            name: "{{ project_name }}"
-            state: started
         - name: Stop Service if Running
           ansible.windows.win_service:
             name: "{{ project_name }}"
