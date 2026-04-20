@@ -6,8 +6,17 @@
     site_base_path: "C:\\Users\\ansible\\Downloads\\sites"
     artifact_dir: "{{ site_base_path }}\\{{ project_name }}\\artifacts"
     backup_dir: "{{ site_base_path }}\\{{ project_name }}\\backup"
+    console_output_dir: "{{ site_base_path }}\\{{ project_name }}\\console-output"
     java_jdk_path: "C:\\jdk-25.0.2\\bin\\java.exe"
   tasks:
+    - name: ensure all required directory exist
+      ansible.windows.win_file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ artifact_dir }}"
+        - "{{ backup_dir }}"
+        - "{{ console_output_dir }}"
     - name: find list of all artifacts of this project and store it is variable
       ansible.windows.win_find:
         paths: "{{ artifact_dir }}"
@@ -30,16 +39,15 @@
       community.windows.win_nssm:
         name: "{{ project_name }}"
         application: "{{ java_jdk_path }}"
-        app_parameters: "-jar {{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[1].path }} --server.port={{ server_port }}"
-        app_directory: "{{ artifact_dir }}"
-        state: present
-    - name: Configuring Deployment as Service
-      community.windows.win_nssm:
-        name: "{{ project_name }}"
-        application: "{{ java_jdk_path }}"
         app_parameters_free_form: >-
-          -jar "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}" --server.port={{ server_port }} --spring.profiles.active={{ deploy_env }}
+          -jar "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[1].path }}" --server.port={{ server_port }} --spring.profiles.active={{ deploy_env }}
         app_directory: "{{ artifact_dir }}"
+        stdout_file: "{{ console_output_dir }}\\{{ project_name }}.log"
+        stderr_file: "{{ console_output_dir }}\\{{ project_name }}.log"
+        extra_parameters:
+          AppRotateFiles: 1
+          AppRotateOnline: 1
+          AppRotateBytes: 10485760
         state: present
     - name: Starting Rollback Service
       ansible.windows.win_service:
