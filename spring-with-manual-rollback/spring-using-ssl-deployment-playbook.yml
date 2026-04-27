@@ -9,6 +9,7 @@
     console_output_dir: "{{ site_base_path }}\\{{ project_name }}\\console-output"
     java_jdk_path: "C:\\jdk-25.0.2\\bin\\java.exe"
     deploy_env: "dev"
+    key_store_type: "PKCS12"
   tasks:
     - name: ensure all required directory exist
       ansible.windows.win_file:
@@ -58,7 +59,7 @@
             name: "{{ deploy_env }}-{{ project_name }}"
             application: "{{ java_jdk_path }}"
             app_parameters_free_form: >-
-              -jar "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}" --server.port={{ server_port }} --spring.profiles.active={{ deploy_env }}
+              -jar "{{ (all_win_artifacts.files | sort(attribute='lastwritetime') | reverse)[0].path }}" --server.port={{ server_port }} --spring.profiles.active={{ deploy_env }} --server.ssl.enabled=true --server.ssl.key-store=file:{{ key_store_path_p12 }} --server.ssl.key-store-password={{ key_store_password }} --server.ssl.key-store-type={{ key_store_type | default("PKCS12") }} --server.ssl.key-alias={{ key_alias | default("jenkins") }}
             app_directory: "{{ artifact_dir }}"
             stdout_file: "{{ console_output_dir }}\\{{ deploy_env }}-{{ project_name }}.log"
             stderr_file: "{{ console_output_dir }}\\{{ deploy_env }}-{{ project_name }}.log"
