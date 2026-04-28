@@ -1,0 +1,8 @@
+- name: Replace multiple environment tokens
+  ansible.builtin.replace:
+    path: "appsettings.json"
+    regexp: "{{ item.token }}"
+    replace: "{{ lookup('env', item.env_var) }}"
+  loop:
+    - { token: '__DB_STRING__', env_var: 'DB_CONNECTION_STRING' }
+    - { token: '__API_KEY__', env_var: 'SERVICE_API_KEY' }
