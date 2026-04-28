@@ -19,3 +19,28 @@
         regexp: '__DB_STRING__'
         replace: "{{ db_connection_string }}"
       no_log: true  # CRITICAL: Prevents the secret from showing in Jenkins logs
+
+pipeline {
+    agent any
+    environment {
+        // This injects the secret text into an environment variable
+        VAULT_PASS = credentials('ANSIBLE_VAULT_PASSWORD')
+    }
+    stages {
+        stage('Deploy') {
+            steps {
+                sh """
+                # Create a temporary password file for Ansible
+                echo \$VAULT_PASS > .vault_pass
+                
+                ansible-playbook deploy.yml \
+                  -e "env_name=prod" \
+                  --vault-password-file .vault_pass
+                
+                # Clean up the password file
+                rm .vault_pass
+                """
+            }
+        }
+    }
+}
