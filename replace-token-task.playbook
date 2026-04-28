@@ -1,0 +1,20 @@
+---
+- name: Creating and zipping file to host1
+  hosts: win_hostkp
+  vars_files:
+    - "tokenization.yml"
+  tasks:
+    - name: using db sting
+      debug:
+        msg: "{{ db_connection_string }} {{ jwt_key }} {{ jwt_issuer }}"
+    - name: replacing Tokens.
+      community.windows.win_lineinfile:
+        path: 'C:\inetpub\wwwroot\kp-dotnet-order-management\appsettings.json'
+        regexp: "{{ item.token }}"
+        line: "{{ item.value_var }}"
+        backrefs: true
+      no_log: true
+      loop:
+        - { token: '__DB_STRING__', value_var: "{{ db_connection_string }}"}
+        - { token: '__JWT_KEY__', value_var: "{{ jwt_key }}"}
+        - { token: '__JWT_ISSUER__', value_var: "{{ jwt_issuer }}"}
