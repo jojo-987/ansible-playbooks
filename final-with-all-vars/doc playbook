@@ -6,3 +6,16 @@
   loop:
     - { token: '__DB_STRING__', env_var: 'DB_CONNECTION_STRING' }
     - { token: '__API_KEY__', env_var: 'SERVICE_API_KEY' }
+
+
+- name: Replace token using Vault variable
+  hosts: all
+  vars_files:
+    - "vars/{{ env_name }}_secrets.yml"  # Dynamically loads dev_secrets or prod_secrets
+  tasks:
+    - name: Replace placeholder in appsettings.json
+      ansible.builtin.replace:
+        path: "/path/to/appsettings.json"
+        regexp: '__DB_STRING__'
+        replace: "{{ db_connection_string }}"
+      no_log: true  # CRITICAL: Prevents the secret from showing in Jenkins logs
